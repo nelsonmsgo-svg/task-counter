@@ -1,0 +1,1031 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Task Counter</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --bd:#e5e6eb; --txt:#111; --mut:#666; --blue:#1677ff; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Arial,sans-serif; background:var(--bg); color:var(--txt); }
+  header { position:sticky; top:0; z-index:10; background:var(--card); border-bottom:1px solid var(--bd); padding:12px 12px 10px; }
+  h1 { margin:0 0 8px; font-size:18px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  select,input,button { font-size:15px; padding:10px 12px; border-radius:12px; border:1px solid #ddd; background:#fff; }
+  input { min-width:160px; }
+  button { cursor:pointer; }
+  button.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .main { padding:12px; }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:12px; margin-bottom:10px; }
+  .mut { color:var(--mut); font-size:13px; }
+  .pill { display:inline-flex; align-items:center; gap:8px; padding:4px 10px; border:1px solid var(--bd); border-radius:999px; font-size:12px; color:#555; background:#fff; }
+  .badge { display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:800; }
+  .badge.today { background:#e9f7ef; color:#137333; border:1px solid #bfe5cf; }
+  .badge.hist { background:#fff3e0; color:#b26a00; border:1px solid #ffd7a3; }
+
+  .split { display:flex; gap:10px; flex-wrap:wrap; }
+  .split > * { flex:1; min-width:280px; }
+
+  .table { background:var(--card); border:1px solid var(--bd); border-radius:14px; overflow:hidden; }
+  .thead, .trow { display:grid; grid-template-columns: 1.7fr 0.65fr 0.65fr 0.9fr; gap:8px; align-items:center; }
+  .thead { padding:10px 12px; background:#fbfbfc; border-bottom:1px solid var(--bd); font-weight:900; font-size:13px; }
+  .thead span { cursor:pointer; user-select:none; }
+  .trow { padding:10px 12px; border-top:1px solid var(--bd); }
+  .trow:first-child { border-top:none; }
+  .name { font-weight:900; line-height:1.2; }
+  .subline { margin-top:4px; font-size:12px; color:var(--mut); display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .num { font-weight:900; font-variant-numeric: tabular-nums; text-align:right; }
+  .actions { display:flex; justify-content:flex-end; gap:8px; }
+  .actions button { padding:8px 10px; border-radius:12px; font-weight:900; }
+  .actions button.plus { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .linkBtn { border:none; background:transparent; color:var(--blue); padding:0; cursor:pointer; font-size:12px; font-weight:800; }
+
+  /* simple overlay modal */
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; padding:16px; z-index:999; }
+  .modal { background:#fff; width:min(720px, 100%); border-radius:16px; border:1px solid var(--bd); padding:14px; }
+  .modal h2 { margin:0 0 8px; font-size:16px; }
+  .modal .mut { margin-bottom:10px; }
+  .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--bd); border-radius:12px; }
+  .modal .item { padding:10px 12px; border-top:1px solid var(--bd); display:flex; justify-content:space-between; gap:10px; align-items:center; }
+  .modal .item:first-child{ border-top:none; }
+</style>
+</head>
+
+<body>
+<header>
+  <div class="row" style="justify-content:space-between; align-items:flex-start;">
+    <div>
+      <h1 id="titleText">任务计数器（任务视角）</h1>
+      <div class="mut" id="subtitleText">以任务为主视角，支持按日期查询与交叉统计。</div>
+    </div>
+    <div class="row">
+      <span class="pill" id="langPill">语言</span>
+      <select id="langSelect">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row" style="margin:10px 0 8px;">
+    <span class="pill" id="queryDatePill">查询日期</span>
+    <input id="dateInput" type="date" />
+    <span id="dateBadge" class="badge today">今天</span>
+
+    <button id="goTodayBtn">回到今天</button>
+
+    <span class="pill" id="catPill">类别</span>
+    <select id="catFilter"></select>
+
+    <label class="pill" style="cursor:pointer;">
+      <input id="onlyTodayToggle" type="checkbox" style="transform:scale(1.1);" />
+      <span id="onlyTodayLabel">只看该日期有记录</span>
+    </label>
+  </div>
+
+  <div class="row">
+    <span class="pill" id="periodPill">Total 统计周期</span>
+    <select id="periodSelect">
+      <option value="all">全部历史</option>
+      <option value="7">最近7天</option>
+      <option value="30">最近30天</option>
+      <option value="custom">自定义区间</option>
+    </select>
+    <input id="fromDate" type="date" style="display:none;" />
+    <input id="toDate" type="date" style="display:none;" />
+    <button id="applyPeriodBtn" style="display:none;">应用区间</button>
+
+    <span style="flex:1;"></span>
+    <button id="openArchiveBtn">归档任务</button>
+    <button id="exportBtn">导出CSV</button>
+  </div>
+
+  <div class="row" style="margin-top:10px;">
+    <select id="newCat"></select>
+    <input id="newTaskName" placeholder="新增任务名（全局唯一）" style="flex:1;" />
+    <button id="addTaskBtn" class="primary">添加任务</button>
+    <button id="importBtn">从旧版迁移</button>
+  </div>
+
+  <div class="mut" id="hintLine" style="margin-top:8px;"></div>
+</header>
+
+<div class="main">
+  <div class="split">
+    <div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <div>
+            <div style="font-weight:900;" id="homeTitle">主页（任务列表）</div>
+            <div class="mut" id="homeTip">点击表头可排序：默认按 Total 降序。</div>
+          </div>
+          <div class="pill" id="sortPill">排序：Total ↓</div>
+        </div>
+      </div>
+
+      <div class="table">
+        <div class="thead">
+          <span id="thName">任务名</span>
+          <span id="thTotal" style="text-align:right;">Total</span>
+          <span id="thToday" style="text-align:right;">Today</span>
+          <span id="thAction" style="text-align:right;">操作</span>
+        </div>
+        <div id="tbody"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div style="font-weight:900;" id="detailTitle">该日期明细（按类别汇总）</div>
+        <div class="mut" id="detailTip">用于“输入日期 → 看当天做了什么”。</div>
+      </div>
+      <div class="card" id="dateDetail"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Archive Modal -->
+<div class="overlay" id="archiveOverlay">
+  <div class="modal">
+    <div class="row" style="justify-content:space-between;align-items:center;">
+      <h2 id="archTitle" style="margin:0;">归档任务</h2>
+      <button id="archCloseBtn">关闭</button>
+    </div>
+    <div class="mut" id="archTip">归档后不参与主页统计，但数据保留。可在此恢复或删除。</div>
+    <div class="list" id="archList"></div>
+  </div>
+</div>
+
+<script>
+/** ================= i18n ================= */
+const LANG_KEY = "task_counter_lang_v2";
+const I18N = {
+  zh: {
+    title: "任务计数器（任务视角）",
+    subtitle: "以任务为主视角，支持按日期查询与交叉统计。",
+    language: "语言",
+    queryDate: "查询日期",
+    today: "今天",
+    history: "历史",
+    backToday: "回到今天",
+    category: "类别",
+    all: "全部",
+    onlyHasRecord: "只看该日期有记录",
+    period: "Total 统计周期",
+    period_all: "全部历史",
+    period_7: "最近7天",
+    period_30: "最近30天",
+    period_custom: "自定义区间",
+    applyRange: "应用区间",
+    archiveTasks: "归档任务",
+    exportCSV: "导出CSV",
+    addTaskPlaceholder: "新增任务名（全局唯一）",
+    addTask: "添加任务",
+    importOld: "从旧版迁移",
+    homeTitle: "主页（任务列表）",
+    homeTip: "点击表头可排序：默认按 Total 降序。",
+    sort: "排序",
+    name: "任务名",
+    total: "Total",
+    todayCol: "Today",
+    action: "操作",
+    archive: "归档",
+    restore: "恢复",
+    delete: "删除",
+    emptyTasks: "暂无任务（或被筛选隐藏）。",
+    noRecord: "该日期暂无记录。",
+    confirmNotToday: (d)=>`⚠️ 你正在修改 ${d} 的数据（不是今天）。\n是否继续？`,
+    beforeCreated: (created)=>`该任务创建于 ${created}，在此日期之前不可记录。`,
+    addTaskEmpty: "请先输入任务名。",
+    addTaskExists: "任务名已存在（全局唯一）。请换一个名字。",
+    rangeNeed: "请先选择起止日期。",
+    rangeInvalid: "起始日期不能晚于结束日期。",
+    importedDone: "迁移完成。",
+    importedNone: "未找到旧版数据。",
+    hint: (d,isT,periodText)=>`当前日期：${d}${isT?"（今天）":"（历史，修改会提示）"}｜${periodText}`,
+    periodText_all: "Total：全部历史",
+    periodText_7: "Total：最近7天",
+    periodText_30: "Total：最近30天",
+    periodText_custom: (f,t)=>`Total：${f} ~ ${t}`,
+    created: "创建",
+    cat: "类别",
+    sortMap: { total:"Total", today:"Today", name:"任务名" },
+    archTitle: "归档任务",
+    archTip: "归档后不参与主页统计，但数据保留。可在此恢复或删除。",
+    close: "关闭",
+    deleteConfirm: (name)=>`⚠️ 永久删除任务「${name}」？\n会删除所有日期的记录，且不可恢复。`
+  },
+  en: {
+    title: "Task Counter (Task-centric)",
+    subtitle: "Task-first view with date query and cross statistics.",
+    language: "Language",
+    queryDate: "Query date",
+    today: "Today",
+    history: "History",
+    backToday: "Go to today",
+    category: "Category",
+    all: "All",
+    onlyHasRecord: "Only tasks with records on this date",
+    period: "Total period",
+    period_all: "All time",
+    period_7: "Last 7 days",
+    period_30: "Last 30 days",
+    period_custom: "Custom range",
+    applyRange: "Apply",
+    archiveTasks: "Archived tasks",
+    exportCSV: "Export CSV",
+    addTaskPlaceholder: "New task name (unique)",
+    addTask: "Add task",
+    importOld: "Import from old",
+    homeTitle: "Home (Task list)",
+    homeTip: "Click headers to sort. Default: Total desc.",
+    sort: "Sort",
+    name: "Task",
+    total: "Total",
+    todayCol: "Today",
+    action: "Actions",
+    archive: "Archive",
+    restore: "Restore",
+    delete: "Delete",
+    emptyTasks: "No tasks (or hidden by filters).",
+    noRecord: "No records for this date.",
+    confirmNotToday: (d)=>`⚠️ You're editing ${d} (not today).\nContinue?`,
+    beforeCreated: (created)=>`This task was created on ${created}. You cannot record before its created date.`,
+    addTaskEmpty: "Please enter a task name.",
+    addTaskExists: "Task name already exists (unique). Please choose another.",
+    rangeNeed: "Please choose start and end dates.",
+    rangeInvalid: "Start date cannot be later than end date.",
+    importedDone: "Import complete.",
+    importedNone: "No importable old data found.",
+    hint: (d,isT,periodText)=>`Date: ${d}${isT?" (today)":" (history; edits will prompt)"} | ${periodText}`,
+    periodText_all: "Total: all time",
+    periodText_7: "Total: last 7 days",
+    periodText_30: "Total: last 30 days",
+    periodText_custom: (f,t)=>`Total: ${f} ~ ${t}`,
+    created: "Created",
+    cat: "Category",
+    sortMap: { total:"Total", today:"Today", name:"Name" },
+    archTitle: "Archived tasks",
+    archTip: "Archived tasks are excluded from the home view but data is kept. You can restore or delete here.",
+    close: "Close",
+    deleteConfirm: (name)=>`⚠️ Permanently delete "${name}"?\nAll records across all dates will be removed and cannot be recovered.`
+  }
+};
+
+let lang = (localStorage.getItem(LANG_KEY) || "zh");
+function t(key, ...args){
+  const pack = I18N[lang] || I18N.zh;
+  const v = pack[key];
+  return (typeof v === "function") ? v(...args) : v;
+}
+function setLang(newLang){
+  lang = newLang;
+  localStorage.setItem(LANG_KEY, lang);
+  applyTexts();
+  renderAll();
+}
+
+/** ================= Data model =================
+store = {
+  categories: [{id, zh, en, customName?}],
+  tasks: [{id,name,catId,created,archived}],
+  counts: { "YYYY-MM-DD": { [taskId]: number } }
+}
+Default categories (your requirement):
+- work: 工作 / Work
+- life: 生活 / Life
+- exercise: 运动 / Exercise
+*/
+const KEY = "task_counter_taskcentric_v3";
+
+// legacy simplified/broken version key (to salvage data)
+const LEGACY_SIMPLE_KEY = "task_counter_final_v1";
+
+function isoToday(){ return new Date().toISOString().slice(0,10); }
+function clampInt(n){ n = Number(n||0); return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0; }
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function escapeHtml(s){
+  return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+}
+// ISO date string compare helpers
+function maxISO(a,b){ return (a >= b) ? a : b; }
+function minISO(a,b){ return (a <= b) ? a : b; }
+
+const defaultCategories = [
+  {id:"work", zh:"工作", en:"Work", customName:""},
+  {id:"life", zh:"生活", en:"Life", customName:""},
+  {id:"exercise", zh:"运动", en:"Exercise", customName:""}
+];
+
+// Map old default names -> new ids
+const legacyCatMap = {
+  "销售":"work", "Sales":"work",
+  "运营":"life", "Operations":"life", "Ops":"life",
+  "客服":"exercise", "客户":"exercise", "Customer Service":"exercise", "CS":"exercise"
+};
+
+let store = loadStore();
+ensureDefaults();
+
+// attempt to salvage data from the simplified broken version (if exists)
+salvageFromLegacySimple();
+
+let currentDate = isoToday();
+
+// sorting
+let sortBy = "total"; // total | today | name
+let sortDir = "desc"; // asc | desc
+
+// total period
+let period = { mode:"all", from:null, to:null }; // inclusive
+
+init();
+
+function loadStore(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){
+      const s = JSON.parse(raw);
+      if(s && Array.isArray(s.tasks) && s.counts && Array.isArray(s.categories)) return s;
+    }
+  }catch(e){}
+  return { categories: [], tasks: [], counts: {} };
+}
+
+function saveStore(){
+  localStorage.setItem(KEY, JSON.stringify(store));
+}
+
+function ensureDefaults(){
+  // categories normalization + ensure default categories exist
+  if(!Array.isArray(store.categories)) store.categories = [];
+  defaultCategories.forEach(dc=>{
+    if(!store.categories.find(c=>c.id===dc.id)){
+      store.categories.unshift({...dc});
+    } else {
+      // update zh/en defaults (keep customName if user set it)
+      const c = store.categories.find(x=>x.id===dc.id);
+      c.zh = dc.zh; c.en = dc.en;
+      if(c.customName == null) c.customName = "";
+    }
+  });
+  // normalize remaining categories fields
+  store.categories = store.categories.map(c=>({
+    id: c.id || ("c_"+uid()),
+    zh: c.zh || c.customName || c.id,
+    en: c.en || c.customName || c.id,
+    customName: c.customName || ""
+  }));
+  if(!Array.isArray(store.tasks)) store.tasks = [];
+  if(!store.counts || typeof store.counts!=="object") store.counts = {};
+  saveStore();
+}
+
+function catLabel(catId){
+  const c = store.categories.find(x=>x.id===catId);
+  if(!c) return catId;
+  if(c.customName && c.customName.trim()) return c.customName.trim();
+  return (lang==="zh") ? c.zh : c.en;
+}
+
+function taskExistsOnDate(task, date){
+  return date >= task.created;
+}
+
+function getCountsForDate(date){
+  if(!store.counts[date]) store.counts[date] = {};
+  return store.counts[date];
+}
+
+function init(){
+  // language
+  document.getElementById("langSelect").value = lang;
+  document.getElementById("langSelect").addEventListener("change", e => setLang(e.target.value));
+  applyTexts();
+
+  // date
+  const dateInput = document.getElementById("dateInput");
+  dateInput.value = currentDate;
+  dateInput.addEventListener("change", ()=>{ currentDate = dateInput.value || isoToday(); renderAll(); });
+
+  document.getElementById("goTodayBtn").onclick = ()=>{
+    currentDate = isoToday();
+    dateInput.value = currentDate;
+    renderAll();
+  };
+
+  // filters
+  renderCatFilters();
+  document.getElementById("onlyTodayToggle").addEventListener("change", renderAll);
+
+  // period
+  const periodSelect = document.getElementById("periodSelect");
+  periodSelect.addEventListener("change", ()=>{
+    const v = periodSelect.value;
+    const from = document.getElementById("fromDate");
+    const to = document.getElementById("toDate");
+    const btn = document.getElementById("applyPeriodBtn");
+
+    if(v==="custom"){
+      from.style.display=""; to.style.display=""; btn.style.display="";
+      if(!from.value) from.value = isoToday();
+      if(!to.value) to.value = isoToday();
+    }else{
+      from.style.display="none"; to.style.display="none"; btn.style.display="none";
+      period = { mode:v, from:null, to:null };
+      renderAll();
+    }
+  });
+
+  document.getElementById("applyPeriodBtn").onclick = ()=>{
+    const from = document.getElementById("fromDate").value;
+    const to = document.getElementById("toDate").value;
+    if(!from || !to) return alert(t("rangeNeed"));
+    if(from > to) return alert(t("rangeInvalid"));
+    period = { mode:"custom", from, to };
+    renderAll();
+  };
+
+  // add task
+  document.getElementById("addTaskBtn").onclick = addTask;
+
+  // import
+  document.getElementById("importBtn").onclick = importFromOld;
+
+  // export
+  document.getElementById("exportBtn").onclick = exportCSV;
+
+  // sorting
+  document.getElementById("thName").onclick = ()=>setSort("name");
+  document.getElementById("thTotal").onclick = ()=>setSort("total");
+  document.getElementById("thToday").onclick = ()=>setSort("today");
+
+  // archive modal
+  document.getElementById("openArchiveBtn").onclick = ()=>{
+    document.getElementById("archiveOverlay").style.display="flex";
+    renderArchiveModal();
+  };
+  document.getElementById("archCloseBtn").onclick = ()=>{
+    document.getElementById("archiveOverlay").style.display="none";
+  };
+
+  // init period
+  document.getElementById("periodSelect").value = "all";
+
+  renderAll();
+}
+
+function applyTexts(){
+  document.getElementById("titleText").textContent = t("title");
+  document.getElementById("subtitleText").textContent = t("subtitle");
+  document.getElementById("langPill").textContent = t("language");
+
+  document.getElementById("queryDatePill").textContent = t("queryDate");
+  document.getElementById("goTodayBtn").textContent = t("backToday");
+  document.getElementById("catPill").textContent = t("category");
+  document.getElementById("onlyTodayLabel").textContent = t("onlyHasRecord");
+
+  document.getElementById("periodPill").textContent = t("period");
+  const ps = document.getElementById("periodSelect");
+  ps.options[0].textContent = t("period_all");
+  ps.options[1].textContent = t("period_7");
+  ps.options[2].textContent = t("period_30");
+  ps.options[3].textContent = t("period_custom");
+  document.getElementById("applyPeriodBtn").textContent = t("applyRange");
+
+  document.getElementById("openArchiveBtn").textContent = t("archiveTasks");
+  document.getElementById("exportBtn").textContent = t("exportCSV");
+  document.getElementById("newTaskName").placeholder = t("addTaskPlaceholder");
+  document.getElementById("addTaskBtn").textContent = t("addTask");
+  document.getElementById("importBtn").textContent = t("importOld");
+
+  document.getElementById("homeTitle").textContent = t("homeTitle");
+  document.getElementById("homeTip").textContent = t("homeTip");
+
+  document.getElementById("thName").textContent = t("name");
+  document.getElementById("thAction").textContent = t("action");
+
+  document.getElementById("detailTitle").textContent = t("detailTitle");
+  document.getElementById("detailTip").textContent = t("detailTip");
+
+  document.getElementById("archTitle").textContent = t("archTitle");
+  document.getElementById("archTip").textContent = t("archTip");
+  document.getElementById("archCloseBtn").textContent = t("close");
+}
+
+function renderCatFilters(){
+  const catFilter = document.getElementById("catFilter");
+  const newCat = document.getElementById("newCat");
+
+  // ✅ 关键：先记住用户当前选中的值
+  const prevSelected = catFilter.value || "全部";
+  const prevNewCat = newCat.value || "work";
+
+  // 重建 catFilter
+  catFilter.innerHTML = "";
+  const optAll = document.createElement("option");
+  optAll.value = "全部";
+  optAll.textContent = t("all");
+  catFilter.appendChild(optAll);
+
+  store.categories.forEach(c=>{
+    const o1 = document.createElement("option");
+    o1.value = c.id;
+    o1.textContent = catLabel(c.id);
+    catFilter.appendChild(o1);
+  });
+
+  // ✅ 关键：把选择恢复回来（如果还存在）
+  const values = Array.from(catFilter.options).map(o=>o.value);
+  catFilter.value = values.includes(prevSelected) ? prevSelected : "全部";
+
+  // 只绑定一次 onchange（避免重复绑定）
+  if(!catFilter._bound){
+    catFilter.onchange = renderAll;
+    catFilter._bound = true;
+  }
+
+  // 重建 newCat（添加任务用）
+  newCat.innerHTML = "";
+  store.categories.forEach(c=>{
+    const o2 = document.createElement("option");
+    o2.value = c.id;
+    o2.textContent = catLabel(c.id);
+    newCat.appendChild(o2);
+  });
+
+  // 恢复 newCat 的选择
+  const newValues = Array.from(newCat.options).map(o=>o.value);
+  newCat.value = newValues.includes(prevNewCat) ? prevNewCat : (newValues[0] || "work");
+}
+
+function setSort(field){
+  if(sortBy === field){
+    sortDir = (sortDir === "desc") ? "asc" : "desc";
+  }else{
+    sortBy = field;
+    sortDir = (field==="name") ? "asc" : "desc";
+  }
+  renderAll();
+}
+
+function sortPillText(){
+  const arrow = sortDir === "desc" ? "↓" : "↑";
+  const label = (I18N[lang]?.sortMap?.[sortBy]) || sortBy;
+  return `${t("sort")}：${label} ${arrow}`;
+}
+
+function periodLabelForHeader(){
+  if(period.mode==="all") return t("period_all");
+  if(period.mode==="7") return t("period_7");
+  if(period.mode==="30") return t("period_30");
+  if(period.mode==="custom") return `${period.from}~${period.to}`;
+  return "";
+}
+
+function setHintAndBadges(){
+  const isT = (currentDate === isoToday());
+  const badge = document.getElementById("dateBadge");
+  badge.className = "badge " + (isT ? "today" : "hist");
+  badge.textContent = isT ? t("today") : t("history");
+
+  let periodText = t("periodText_all");
+  if(period.mode==="7") periodText = t("periodText_7");
+  if(period.mode==="30") periodText = t("periodText_30");
+  if(period.mode==="custom") periodText = t("periodText_custom", period.from, period.to);
+
+  document.getElementById("hintLine").textContent = t("hint", currentDate, isT, periodText);
+
+  document.getElementById("thTotal").textContent = `${t("total")} (${periodLabelForHeader()})`;
+  document.getElementById("thToday").textContent = t("todayCol");
+}
+
+function addTask(){
+  const name = document.getElementById("newTaskName").value.trim();
+  if(!name) return alert(t("addTaskEmpty"));
+  if(store.tasks.find(tk=>tk.name===name)) return alert(t("addTaskExists"));
+
+  const catId = document.getElementById("newCat").value || "work";
+  const task = { id: uid(), name, catId, created: currentDate, archived:false };
+  store.tasks.push(task);
+  saveStore();
+
+  document.getElementById("newTaskName").value = "";
+  renderAll();
+}
+
+function dateRangeForTaskTotal(task){
+  let from = task.created;
+  let to = isoToday();
+  if(period.mode==="7"){
+    const d = new Date(isoToday()); d.setDate(d.getDate()-6);
+    from = maxISO(from, d.toISOString().slice(0,10));
+  }else if(period.mode==="30"){
+    const d = new Date(isoToday()); d.setDate(d.getDate()-29);
+    from = maxISO(from, d.toISOString().slice(0,10));
+  }else if(period.mode==="custom"){
+    from = maxISO(from, period.from);
+    to = minISO(to, period.to);
+  }
+  if(from > to) return null;
+  return {from,to};
+}
+
+function computeTotal(task){
+  const r = dateRangeForTaskTotal(task);
+  if(!r) return 0;
+  let sum=0;
+  Object.keys(store.counts).forEach(date=>{
+    if(date < r.from || date > r.to) return;
+    sum += clampInt((store.counts[date]||{})[task.id]);
+  });
+  return sum;
+}
+
+function computeToday(task){
+  if(!taskExistsOnDate(task, currentDate)) return null;
+  const dayMap = store.counts[currentDate] || {};
+  return clampInt(dayMap[task.id]);
+}
+
+function confirmIfNotToday(){
+  if(currentDate === isoToday()) return true;
+  return confirm(t("confirmNotToday", currentDate));
+}
+
+function changeCount(taskId, delta){
+  const task = store.tasks.find(tk=>tk.id===taskId);
+  if(!task) return;
+
+  if(task.archived) return; // archived not editable on home
+
+  if(!taskExistsOnDate(task, currentDate)){
+    alert(t("beforeCreated", task.created));
+    return;
+  }
+  if(!confirmIfNotToday()) return;
+
+  const dayMap = getCountsForDate(currentDate);
+  const cur = clampInt(dayMap[taskId]);
+  dayMap[taskId] = clampInt(cur + delta);
+  saveStore();
+  renderAll();
+}
+
+function archiveTask(taskId){
+  const task = store.tasks.find(tk=>tk.id===taskId);
+  if(!task) return;
+  task.archived = true;
+  saveStore();
+  renderAll();
+}
+
+function restoreTask(taskId){
+  const task = store.tasks.find(tk=>tk.id===taskId);
+  if(!task) return;
+  task.archived = false;
+  saveStore();
+  renderAll();
+  renderArchiveModal();
+}
+
+function deleteTask(taskId){
+  const task = store.tasks.find(tk=>tk.id===taskId);
+  if(!task) return;
+  if(!confirm(t("deleteConfirm", task.name))) return;
+
+  store.tasks = store.tasks.filter(x=>x.id!==taskId);
+  Object.keys(store.counts).forEach(date=>{
+    if(store.counts[date] && store.counts[date][taskId]!=null){
+      delete store.counts[date][taskId];
+    }
+  });
+  saveStore();
+  renderAll();
+  renderArchiveModal();
+}
+
+function renderArchiveModal(){
+  const list = document.getElementById("archList");
+  list.innerHTML = "";
+  const archived = store.tasks.filter(tk=>tk.archived);
+  if(archived.length===0){
+    const div = document.createElement("div");
+    div.className="item";
+    div.innerHTML = `<div class="mut">${escapeHtml(t("emptyTasks"))}</div><div></div>`;
+    list.appendChild(div);
+    return;
+  }
+  archived.forEach(tk=>{
+    const div = document.createElement("div");
+    div.className="item";
+    div.innerHTML = `
+      <div>
+        <div style="font-weight:900;">${escapeHtml(tk.name)}</div>
+        <div class="mut">${escapeHtml(catLabel(tk.catId))} · ${t("created")}: ${tk.created}</div>
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <button onclick="restoreTask('${tk.id}')">${escapeHtml(t("restore"))}</button>
+        <button onclick="deleteTask('${tk.id}')">${escapeHtml(t("delete"))}</button>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function renderTaskTable(){
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+
+  const catSel = document.getElementById("catFilter").value || "全部";
+  const onlyToday = document.getElementById("onlyTodayToggle").checked;
+
+  let tasks = store.tasks.filter(tk=>!tk.archived);
+
+  if(catSel !== "全部"){
+    tasks = tasks.filter(tk=>tk.catId===catSel);
+  }
+
+  const rows = tasks.map(tk=>({ tk, total: computeTotal(tk), todayVal: computeToday(tk) }));
+
+  let filtered = rows;
+  if(onlyToday){
+    filtered = rows.filter(r => (r.todayVal != null && r.todayVal > 0));
+  }
+
+  filtered.sort((a,b)=>{
+    let x,y;
+    if(sortBy==="total"){ x=a.total; y=b.total; }
+    if(sortBy==="today"){ x=(a.todayVal==null?-1:a.todayVal); y=(b.todayVal==null?-1:b.todayVal); }
+    if(sortBy==="name"){ x=a.tk.name.toLowerCase(); y=b.tk.name.toLowerCase(); }
+    if(x<y) return sortDir==="asc"?-1:1;
+    if(x>y) return sortDir==="asc"?1:-1;
+    return a.tk.name.toLowerCase().localeCompare(b.tk.name.toLowerCase());
+  });
+
+  if(filtered.length===0){
+    const empty = document.createElement("div");
+    empty.className="trow";
+    empty.innerHTML = `<div class="mut">${escapeHtml(t("emptyTasks"))}</div><div></div><div></div><div></div>`;
+    tbody.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach(r=>{
+    const tr = document.createElement("div");
+    tr.className="trow";
+    tr.innerHTML = `
+      <div>
+        <div class="name">${escapeHtml(r.tk.name)}</div>
+        <div class="subline">
+          <span>${escapeHtml(t("cat"))}: ${escapeHtml(catLabel(r.tk.catId))}</span>
+          <span>${escapeHtml(t("created"))}: ${r.tk.created}</span>
+          <button class="linkBtn" onclick="archiveTask('${r.tk.id}')">${escapeHtml(t("archive"))}</button>
+        </div>
+      </div>
+      <div class="num">${r.total}</div>
+      <div class="num">${(r.todayVal==null) ? "-" : r.todayVal}</div>
+      <div class="actions">
+        <button class="plus" onclick="changeCount('${r.tk.id}', 1)">+</button>
+        <button onclick="changeCount('${r.tk.id}', -1)">−</button>
+      </div>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderDateDetail(){
+  const box = document.getElementById("dateDetail");
+  const catSel = document.getElementById("catFilter").value || "全部";
+
+  const activeTasks = store.tasks.filter(tk=>!tk.archived);
+  const dayMap = store.counts[currentDate] || {};
+  const items = [];
+
+  activeTasks.forEach(tk=>{
+    if(catSel !== "全部" && tk.catId !== catSel) return;
+    if(!taskExistsOnDate(tk, currentDate)) return;
+    const v = clampInt(dayMap[tk.id]);
+    if(v>0){
+      items.push({catId: tk.catId, name: tk.name, v});
+    }
+  });
+
+  if(items.length===0){
+    box.innerHTML = `<div class="mut">${escapeHtml(t("noRecord"))}</div>`;
+    return;
+  }
+
+  items.sort((a,b)=> catLabel(a.catId).localeCompare(catLabel(b.catId)) || b.v-a.v);
+
+  let html="";
+  let cur=null;
+  items.forEach(it=>{
+    const cName = catLabel(it.catId);
+    if(cName!==cur){
+      cur=cName;
+      html += `<div style="font-weight:900;margin:10px 0 6px;">${escapeHtml(cur)}</div>`;
+    }
+    html += `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed #eee;">
+      <div>${escapeHtml(it.name)}</div><div style="font-weight:900;">${it.v}</div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+
+function renderAll(){
+  renderCatFilters();
+  setHintAndBadges();
+  document.getElementById("sortPill").textContent = sortPillText();
+  renderTaskTable();
+  renderDateDetail();
+}
+
+function exportCSV(){
+  // export visible tasks (non-archived, current category filter) with today/total
+  const catSel = document.getElementById("catFilter").value || "全部";
+  let tasks = store.tasks.filter(tk=>!tk.archived);
+  if(catSel!=="全部") tasks = tasks.filter(tk=>tk.catId===catSel);
+
+  const headers = (lang==="zh")
+    ? ["任务名","类别","创建日期","查询日期","Today","Total(当前周期)"]
+    : ["Task","Category","Created","Query Date","Today","Total (current period)"];
+
+  const rows = [headers];
+  tasks.forEach(tk=>{
+    const todayVal = computeToday(tk);
+    const totalVal = computeTotal(tk);
+    rows.push([
+      tk.name,
+      catLabel(tk.catId),
+      tk.created,
+      currentDate,
+      (todayVal==null?"":String(todayVal)),
+      String(totalVal)
+    ]);
+  });
+
+  const csv = rows.map(r => r.map(cell => `"${String(cell).replaceAll('"','""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `task_counter_${currentDate}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** ===== Salvage from simplified/broken version to not lose your current data ===== */
+function salvageFromLegacySimple(){
+  try{
+    const raw = localStorage.getItem(LEGACY_SIMPLE_KEY);
+    if(!raw) return;
+    const legacy = JSON.parse(raw);
+    if(!legacy || (!Array.isArray(legacy.tasks) && !Array.isArray(legacy.cats) && !legacy.counts)) return;
+
+    // legacy cats: could be [{id,zh,en,custom}] or defaultCats or strings
+    if(Array.isArray(legacy.cats)){
+      legacy.cats.forEach(c=>{
+        // If it looks like old defaults "销售/运营/客服" map to our defaults, don't add
+        const names = [];
+        if(typeof c === "string") names.push(c);
+        else {
+          if(c.custom) names.push(c.custom);
+          if(c.zh) names.push(c.zh);
+          if(c.en) names.push(c.en);
+        }
+        const mapped = names.map(x=>legacyCatMap[(x||"").trim()]).find(Boolean);
+        if(mapped){
+          // nothing to add (already have defaults)
+          return;
+        }
+        // add as custom category (preserve name)
+        const label = (typeof c==="string") ? c : (c.custom || c.zh || c.en);
+        if(!label) return;
+        if(store.categories.find(x => (x.customName||"").trim()===String(label).trim() || x.zh===label || x.en===label)) return;
+        store.categories.push({id:"c_"+uid(), zh:label, en:label, customName:label});
+      });
+    }
+
+    // legacy tasks: [{id,name,cat}] where cat is id in legacy cats. We will map:
+    // - if cat corresponds to old default ids 'work/life/exercise' keep
+    // - else keep as a custom category by label if we can find it
+    if(Array.isArray(legacy.tasks)){
+      legacy.tasks.forEach(tk=>{
+        if(!tk || !tk.name) return;
+        if(store.tasks.find(x=>x.name===tk.name)) return;
+
+        let catId = "work";
+        if(tk.cat === "work" || tk.cat==="life" || tk.cat==="exercise") catId = tk.cat;
+
+        // If legacy category is not default, try to find by id in legacy.cats then by name
+        if(catId==="work" && tk.cat && Array.isArray(legacy.cats)){
+          const legacyCatObj = legacy.cats.find(x => typeof x==="object" && x.id===tk.cat);
+          const label = legacyCatObj ? (legacyCatObj.custom || legacyCatObj.zh || legacyCatObj.en) : null;
+          if(label){
+            let found = store.categories.find(c => (c.customName||"").trim()===label.trim() || c.zh===label);
+            if(!found){
+              found = {id:"c_"+uid(), zh:label, en:label, customName:label};
+              store.categories.push(found);
+            }
+            catId = found.id;
+          }
+        }
+
+        store.tasks.push({
+          id: uid(),
+          name: String(tk.name),
+          catId,
+          created: isoToday(),
+          archived: false
+        });
+      });
+    }
+
+    // legacy counts: {date:{taskId:count}} but taskIds won't match; hard to map safely without a name-index.
+    // We skip legacy counts salvage to avoid wrong mapping.
+
+    saveStore();
+  }catch(e){}
+}
+
+/** ===== Import from old daily versions (v1~v4) ===== */
+function importFromOld(){
+  // Try common old keys
+  const keys = ["daily_task_counter_v4","daily_task_counter_v3","daily_task_counter_v2","daily_task_counter_v1","task_counter_v1"];
+  let importedAny = false;
+
+  for(const k of keys){
+    const raw = localStorage.getItem(k);
+    if(!raw) continue;
+    try{
+      const old = JSON.parse(raw);
+      if(!old || !old.data) continue;
+
+      // import categories list if present (keep as custom categories; ignore legacy defaults)
+      if(Array.isArray(old.categories)){
+        old.categories.forEach(name=>{
+          const n = (name||"").trim();
+          if(!n) return;
+          if(legacyCatMap[n]) return; // don't add old defaults as custom
+          if(store.categories.find(c => (c.customName||"").trim()===n || c.zh===n || c.en===n)) return;
+          store.categories.push({id:"c_"+uid(), zh:n, en:n, customName:n});
+        });
+      }
+
+      // import tasks + counts
+      Object.keys(old.data).forEach(date=>{
+        const arr = old.data[date];
+        if(!Array.isArray(arr)) return;
+
+        arr.forEach(item=>{
+          const name = (item.name||"").trim();
+          if(!name) return;
+
+          // find or create task by global unique name
+          let task = store.tasks.find(tk=>tk.name===name);
+
+          // determine category id
+          const oldCatName = (item.cat||"").trim();
+          let catId = "work";
+          if(oldCatName && legacyCatMap[oldCatName]) catId = legacyCatMap[oldCatName];
+          else if(oldCatName){
+            // find existing custom category by label
+            let found = store.categories.find(c => (c.customName||"").trim()===oldCatName || c.zh===oldCatName);
+            if(!found){
+              found = {id:"c_"+uid(), zh:oldCatName, en:oldCatName, customName:oldCatName};
+              store.categories.push(found);
+            }
+            catId = found.id;
+          }
+
+          if(!task){
+            task = { id: uid(), name, catId, created: date, archived:false };
+            store.tasks.push(task);
+          }else{
+            // keep earliest created date for "exists from created"
+            if(date < task.created) task.created = date;
+            // if task cat is default but old has custom, keep original (do nothing); you can manually change later if needed
+          }
+
+          const count = clampInt(item.count);
+          const dayMap = getCountsForDate(date);
+          dayMap[task.id] = clampInt((dayMap[task.id]||0) + count);
+        });
+      });
+
+      importedAny = true;
+    }catch(e){}
+  }
+
+  ensureDefaults();
+  saveStore();
+  renderAll();
+  alert(importedAny ? t("importedDone") : t("importedNone"));
+}
+
+/** ================= Start ================= */
+</script>
+</body>
+</html>
