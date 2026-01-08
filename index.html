@@ -48,6 +48,75 @@
   .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--bd); border-radius:12px; }
   .modal .item { padding:10px 12px; border-top:1px solid var(--bd); display:flex; justify-content:space-between; gap:10px; align-items:center; }
   .modal .item:first-child{ border-top:none; }
+/* ===== 手机屏幕优化（宽度 <= 640px）===== */
+@media (max-width: 640px) {
+  header { padding: 10px; }
+  h1 { font-size: 16px; margin-bottom: 6px; }
+
+  /* 顶部控件：全部变成“每个控件占满一行/半行”，不挤在一起 */
+  .row { gap: 6px; }
+  .row > * { flex: 1 1 auto; }
+
+  /* 输入/下拉/按钮：更紧凑 */
+  select, input, button {
+    font-size: 14px;
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+
+  /* 让日期选择、语言、类别这些更好排 */
+  #dateInput { flex: 1 1 160px; }
+  #goTodayBtn { flex: 1 1 120px; }
+  #langSelect { flex: 1 1 120px; }
+  #catFilter { flex: 1 1 160px; }
+  #periodSelect { flex: 1 1 160px; }
+  #fromDate, #toDate, #applyPeriodBtn { flex: 1 1 120px; }
+
+  /* 右侧两栏改成上下排列（手机一列） */
+  .split { flex-direction: column; }
+  .split > * { min-width: 0; }
+
+  /* 表格：四列太挤，改成 2 行布局：
+     第一行：任务名 + 操作
+     第二行：Total / Today */
+  .thead { display: none; } /* 手机上隐藏表头，节省空间 */
+  .trow {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name actions"
+      "stats stats";
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* 让原来的四个子块各就各位：
+     你的行结构是： [任务块][Total][Today][操作]
+     我们用 nth-child 把它们重新排版 */
+  .trow > :nth-child(1) { grid-area: name; }
+  .trow > :nth-child(2),
+  .trow > :nth-child(3) { display: none; } /* 先隐藏原本的两列数字 */
+
+  .trow > :nth-child(4) { grid-area: actions; }
+
+  /* 在“任务块”下面补一行 stats（Total/Today） */
+  .trow > :nth-child(1)::after {
+    content: " ";
+    display: block;
+  }
+
+  /* 用更简单方式：把 Total/Today 写到 subline 里显示 */
+  .subline { gap: 8px; }
+  .num { text-align: left; }
+
+  /* 按钮区更紧凑 */
+  .actions button { padding: 8px 10px; border-radius: 10px; }
+  .actions { gap: 6px; }
+
+  /* 弹窗在手机上更大更好点 */
+  .modal { padding: 12px; border-radius: 14px; }
+  .modal .list { max-height: 60vh; }
+}
 </style>
 </head>
 
