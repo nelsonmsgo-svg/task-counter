@@ -117,7 +117,69 @@
   .modal { padding: 12px; border-radius: 14px; }
   .modal .list { max-height: 60vh; }
 }
-</style>
+/* ===== 手机卡片模式 ===== */
+@media (max-width: 640px) {
+
+  /* 表头在手机上隐藏 */
+  .thead {
+    display: none;
+  }
+
+  /* 每一行变成“卡片” */
+  .trow {
+    display: block;
+    border: 1px solid #e5e6eb;
+    border-radius: 14px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: #fff;
+  }
+
+  /* 任务名更突出 */
+  .trow .name {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  /* 子信息换行显示 */
+  .trow .subline {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* 数字区：Today / Total 横向 */
+  .mobile-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+
+  .mobile-stats span {
+    font-weight: 700;
+  }
+
+  /* 操作按钮：更适合手指 */
+  .actions {
+    justify-content: space-between;
+  }
+
+  .actions button {
+    flex: 1;
+    padding: 10px 0;
+    font-size: 16px;
+    border-radius: 12px;
+  }
+
+  .actions button + button {
+    margin-left: 8px;
+  }
+}</style>
 </head>
 
 <body>
